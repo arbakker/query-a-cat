@@ -45,6 +45,7 @@ qac csw https://www.nationaalgeoregister.nl/geonetwork/srv/dut/csw "type='datase
 qac csw https://www.nationaalgeoregister.nl/geonetwork/srv/dut/csw "anytext LIKE '%Kadaster%'" --result-type hits
 qac csw https://www.nationaalgeoregister.nl/geonetwork/srv/dut/csw "" --result-type hits
 qac csw https://www.nationaalgeoregister.nl/geonetwork/srv/dut/csw "type='service' AND organisationName='Beheer PDOK'" --result-type uids
+qac csw-download https://www.nationaalgeoregister.nl/geonetwork/srv/dut/csw "type='service' AND organisationName='Beheer PDOK'"
 ```
 
 ## Result-types

@@ -15,7 +15,7 @@ import requests
 from lxml import etree
 
 class CSWClient:
-    def __init__(self, url):
+    def __init__(self, url, verbose):
         self.username = ""
         self.password = ""
         self.url = url
@@ -26,6 +26,7 @@ class CSWClient:
         self.query_template = "&constraint={0}&constraintLanguage=CQL_TEXT&constraint_language_version=1.1.0"
         self.start_pos_template = "&startPosition={0}"
         self.load_csw_credentials()
+        self.verbose = verbose
 
     def load_csw_credentials(self):
         if 'CSW_USERNAME' in os.environ:
@@ -50,7 +51,7 @@ class CSWClient:
         xml_md_str = etree.tostring(xml_md, pretty_print=True)
         return xml_md_str
 
-    def get_records_filter(self, query, result_type, limit):
+    def csw_query(self, query, result_type, limit, dest_dir=None):
         index = 1
         results = []
         if query:
@@ -68,14 +69,26 @@ class CSWClient:
                 break
             search_result = self.get_search_result(response.content)
             nr_records = self.get_number_records(search_result, 'numberOfRecordsReturned')
-            query_results = self.get_md_fields(response.content, result_type)
+            if result_type in ["uids", "full", "download"]:
+                query_results = self.get_md_identifiers(response.content)
+            else:
+                query_results = self.get_md_fields(response.content)
             results.extend(query_results)
             if nr_records < 10:
                 break
             index += 10
         if result_type == "full":
             return self.get_xml_records(results)
+        if result_type == "download":
+            self.get_xml_records_download(results, dest_dir)
         return results
+
+    def get_xml_records_download(self, uids, dest_dir):
+        for uid in uids:
+            xml_md_str = self.get_record(uid)
+            dest_path = os.path.join(dest_dir, f"{uid}.xml")
+            with open(dest_path, 'w') as md_file:
+                md_file.write(xml_md_str.decode("utf-8"))
 
     def get_xml_records(self, uids):
         results = []
@@ -91,6 +104,8 @@ class CSWClient:
 
     def get_request(self, url):
         try:
+            if self.verbose:
+                print(url)
             if not self.password or not self.username:
                 response = self.session.get(url)
             else:
@@ -139,7 +154,7 @@ class CSWClient:
         result = [record.text for record in records]
         return result
 
-    def get_md_fields(self, xml, result_type):
+    def get_md_identifiers(self, xml):
         parser = etree.XMLParser(ns_clean=True, recover=True, encoding='utf-8')
         root = etree.fromstring(xml, parser=parser)
         search_result = root.xpath('.//csw:SummaryRecord', namespaces=self.ns)
@@ -147,29 +162,37 @@ class CSWClient:
         for item in search_result:
             uuid = item.xpath('.//dc:identifier', namespaces=self.ns)
             uuid_string = uuid[0].text
-            if result_type == "uids" or result_type == "full":
-                results.append(uuid_string)
-            else:
-                record = {}
-                titel = item.xpath('.//dc:title', namespaces=self.ns)
-                title_string = titel[0].text
-                abstract = item.xpath('.//dct:abstract', namespaces=self.ns)
-                abstract_string = abstract[0].text
-                modified = item.xpath('.//dct:modified', namespaces=self.ns)
-                # some records have unset modified field, WHY?!!!
-                if modified: 
-                    modified_string = modified[0].text
-                    record["modified"] = modified_string
-                md_type = item.xpath('.//dc:type', namespaces=self.ns)
-                md_type_string = md_type[0].text
-                keywords_xpath = item.xpath('.//dc:subject', namespaces=self.ns)
-                keywords = []
-                for keyword in keywords_xpath:
-                    keywords.append(keyword.text)
-                record["identifier"] = uuid_string
-                record["titel"] = title_string
-                record["abstract"] = abstract_string
-                record["md_type"] = md_type_string
-                record["keywords"] = keywords
-                results.append(record)
+            results.append(uuid_string)
+        return results
+
+    def get_md_fields(self, xml):
+        parser = etree.XMLParser(ns_clean=True, recover=True, encoding='utf-8')
+        root = etree.fromstring(xml, parser=parser)
+        search_result = root.xpath('.//csw:SummaryRecord', namespaces=self.ns)
+        results = []
+        for item in search_result:
+            uuid = item.xpath('.//dc:identifier', namespaces=self.ns)
+            uuid_string = uuid[0].text
+            record = {}
+            titel = item.xpath('.//dc:title', namespaces=self.ns)
+            title_string = titel[0].text
+            abstract = item.xpath('.//dct:abstract', namespaces=self.ns)
+            abstract_string = abstract[0].text
+            modified = item.xpath('.//dct:modified', namespaces=self.ns)
+            # some records have unset modified field, WHY?!!!
+            if modified: 
+                modified_string = modified[0].text
+                record["modified"] = modified_string
+            md_type = item.xpath('.//dc:type', namespaces=self.ns)
+            md_type_string = md_type[0].text
+            keywords_xpath = item.xpath('.//dc:subject', namespaces=self.ns)
+            keywords = []
+            for keyword in keywords_xpath:
+                keywords.append(keyword.text)
+            record["identifier"] = uuid_string
+            record["titel"] = title_string
+            record["abstract"] = abstract_string
+            record["md_type"] = md_type_string
+            record["keywords"] = keywords
+            results.append(record)
         return results
