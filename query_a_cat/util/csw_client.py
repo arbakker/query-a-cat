@@ -57,6 +57,7 @@ class CSWClient:
         if query:
             query_quoted = urllib.parse.quote(query)
         while True:
+            print(f"limit: {limit}")
             if limit != -1 and index >= limit:
                 break
             query_string = ""
@@ -68,15 +69,16 @@ class CSWClient:
             if response.status_code != 200:
                 break
             search_result = self.get_search_result(response.content)
+            nr_records_matched = self.get_number_records(search_result, 'numberOfRecordsMatched')
             nr_records = self.get_number_records(search_result, 'numberOfRecordsReturned')
             if result_type in ["uids", "full", "download"]:
                 query_results = self.get_md_identifiers(response.content)
             else:
                 query_results = self.get_md_fields(response.content)
             results.extend(query_results)
-            if nr_records < 10:
-                break
             index += 10
+            if index > nr_records_matched:
+                break
         if result_type == "full":
             return self.get_xml_records(results)
         if result_type == "download":
@@ -146,6 +148,8 @@ class CSWClient:
         else:
             raise Exception("Could not find SearchResults@{0} in CSW GetRecords response".\
                 format(attribute))
+    
+    
 
     def get_record_identifiers(self, xml):
         parser = etree.XMLParser(ns_clean=True, recover=True, encoding='utf-8')
