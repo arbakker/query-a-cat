@@ -57,7 +57,6 @@ class CSWClient:
         if query:
             query_quoted = urllib.parse.quote(query)
         while True:
-            print(f"limit: {limit}")
             if limit != -1 and index >= limit:
                 break
             query_string = ""
